@@ -35,12 +35,29 @@ export async function getOrganization(client: Client, id: string) {
 }
 
 export async function getOrgMembers(client: Client, orgId: string) {
-  const { data, error } = await client
+  const { data: members, error: membersError } = await client
     .from("team_members")
-    .select("*, profiles(*)")
+    .select("*")
     .eq("org_id", orgId);
-  if (error) throw error;
-  return data;
+  if (membersError) throw membersError;
+
+  const userIds = (members as Tables["team_members"]["Row"][]).map((m) => m.user_id);
+  if (userIds.length === 0) return [];
+
+  const { data: profiles, error: profilesError } = await client
+    .from("profiles")
+    .select("*")
+    .in("id", userIds);
+  if (profilesError) throw profilesError;
+
+  const profileMap = new Map(
+    (profiles as Tables["profiles"]["Row"][]).map((p) => [p.id, p])
+  );
+
+  return (members as Tables["team_members"]["Row"][]).map((member) => ({
+    ...member,
+    profile: profileMap.get(member.user_id) ?? null,
+  }));
 }
 
 export async function getSubscription(client: Client, userId: string) {
@@ -92,8 +109,8 @@ export async function getAuditLogs(client: Client, filters: AuditLogFilters = {}
   if (filters.action) query = query.eq("action", filters.action);
   if (filters.resourceType) query = query.eq("resource_type", filters.resourceType);
   if (filters.resourceId) query = query.eq("resource_id", filters.resourceId);
-  if (filters.limit) query = query.limit(filters.limit);
-  if (filters.offset) query = query.range(filters.offset, filters.offset + (filters.limit ?? 50) - 1);
+  if (filters.limit !== undefined) query = query.limit(filters.limit);
+  if (filters.offset !== undefined) query = query.range(filters.offset, filters.offset + (filters.limit ?? 50) - 1);
 
   const { data, error } = await query;
   if (error) throw error;

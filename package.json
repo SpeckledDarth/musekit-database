@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@musekit/shared": "github:SpeckledDarth/musekit-shared",
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.98.0"
   },
