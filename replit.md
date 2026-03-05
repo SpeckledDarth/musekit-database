@@ -33,10 +33,21 @@ dist/               — compiled JavaScript output (auto-generated)
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anonymous/public key
 - `SUPABASE_SERVICE_ROLE_KEY` — Supabase service role key (admin operations)
 
-## Database Tables
-Core: profiles, organizations, team_members, team_invitations, subscriptions, audit_logs, notifications, brand_settings, feature_toggles, content_posts, waitlist, feedback, webhook_configs, email_templates, api_keys
+## Database Tables (Real DB Names)
+Core: profiles, organizations, organization_members, invitations, muse_product_subscriptions, audit_logs, notifications, settings, posts, waitlist_entries, feedback, email_templates, config_secrets
 
 Extensions (PassivePost): social_posts, social_accounts, brand_preferences, social_analytics, post_queue
+
+## Table Name Mapping (old theoretical → real DB)
+- brand_settings → settings (key/value pairs, no updated_at)
+- team_invitations → invitations (uses organization_id)
+- team_members → organization_members (uses organization_id)
+- subscriptions → muse_product_subscriptions (product_slug, tier_id, etc.)
+- content_posts → posts (type, excerpt, published boolean)
+- waitlist → waitlist_entries
+- api_keys → config_secrets (key_name, encrypted_value, updated_by)
+- feature_toggles → REMOVED (does not exist; use settings table)
+- webhook_configs → REMOVED (does not exist)
 
 ## Reference
 - Original implementation: github.com/SpeckledDarth/master-saas-muse

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, AuditLogInsert } from "./schema";
+import type { Database, AuditLogInsert, SettingInsert } from "./schema";
 
 type Client = SupabaseClient<Database>;
 type Tables = Database["public"]["Tables"];
@@ -36,12 +36,12 @@ export async function getOrganization(client: Client, id: string) {
 
 export async function getOrgMembers(client: Client, orgId: string) {
   const { data: members, error: membersError } = await client
-    .from("team_members")
+    .from("organization_members")
     .select("*")
-    .eq("org_id", orgId);
+    .eq("organization_id", orgId);
   if (membersError) throw membersError;
 
-  const userIds = (members as Tables["team_members"]["Row"][]).map((m) => m.user_id);
+  const userIds = (members as Tables["organization_members"]["Row"][]).map((m) => m.user_id);
   if (userIds.length === 0) return [];
 
   const { data: profiles, error: profilesError } = await client
@@ -54,7 +54,7 @@ export async function getOrgMembers(client: Client, orgId: string) {
     (profiles as Tables["profiles"]["Row"][]).map((p) => [p.id, p])
   );
 
-  return (members as Tables["team_members"]["Row"][]).map((member) => ({
+  return (members as Tables["organization_members"]["Row"][]).map((member) => ({
     ...member,
     profile: profileMap.get(member.user_id) ?? null,
   }));
@@ -62,12 +62,12 @@ export async function getOrgMembers(client: Client, orgId: string) {
 
 export async function getSubscription(client: Client, userId: string) {
   const { data, error } = await client
-    .from("subscriptions")
+    .from("muse_product_subscriptions")
     .select("*")
     .eq("user_id", userId)
     .single();
   if (error) throw error;
-  return data as Tables["subscriptions"]["Row"];
+  return data as Tables["muse_product_subscriptions"]["Row"];
 }
 
 export async function getNotifications(
@@ -130,51 +130,44 @@ export async function createAuditLog(
   return data as Tables["audit_logs"]["Row"];
 }
 
-export async function getBrandSettings(client: Client) {
+export async function getSetting(client: Client, key: string) {
   const { data, error } = await client
-    .from("brand_settings")
+    .from("settings")
     .select("*")
-    .limit(1)
+    .eq("key", key)
     .single();
   if (error) throw error;
-  return data as Tables["brand_settings"]["Row"];
+  return data as Tables["settings"]["Row"];
 }
 
-export async function updateBrandSettings(
-  client: Client,
-  settings: Partial<Tables["brand_settings"]["Insert"]>
-) {
-  const existing = await getBrandSettings(client);
-  const { data, error } = await (client as SupabaseClient)
-    .from("brand_settings")
-    .update(settings)
-    .eq("id", existing.id)
-    .select()
-    .single();
-  if (error) throw error;
-  return data as Tables["brand_settings"]["Row"];
-}
-
-export async function getFeatureToggles(client: Client) {
+export async function getSettings(client: Client) {
   const { data, error } = await client
-    .from("feature_toggles")
+    .from("settings")
     .select("*")
     .order("key", { ascending: true });
   if (error) throw error;
-  return data as Tables["feature_toggles"]["Row"][];
+  return data as Tables["settings"]["Row"][];
 }
 
-export async function updateFeatureToggle(
+export async function getSettingsByPrefix(client: Client, prefix: string) {
+  const { data, error } = await client
+    .from("settings")
+    .select("*")
+    .like("key", `${prefix}%`)
+    .order("key", { ascending: true });
+  if (error) throw error;
+  return data as Tables["settings"]["Row"][];
+}
+
+export async function upsertSetting(
   client: Client,
-  key: string,
-  enabled: boolean
+  entry: SettingInsert
 ) {
   const { data, error } = await (client as SupabaseClient)
-    .from("feature_toggles")
-    .update({ enabled })
-    .eq("key", key)
+    .from("settings")
+    .upsert(entry, { onConflict: "key" })
     .select()
     .single();
   if (error) throw error;
-  return data as Tables["feature_toggles"]["Row"];
+  return data as Tables["settings"]["Row"];
 }

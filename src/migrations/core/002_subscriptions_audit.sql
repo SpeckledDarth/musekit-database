@@ -1,15 +1,19 @@
 -- DOCUMENTATION ONLY — DO NOT RUN AGAINST LIVE DATABASE
--- Core tables: subscriptions, audit_logs, notifications
+-- Core tables: muse_product_subscriptions, audit_logs, notifications
 
-CREATE TABLE IF NOT EXISTS subscriptions (
+CREATE TABLE IF NOT EXISTS muse_product_subscriptions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  stripe_customer_id TEXT,
+  user_id UUID NOT NULL,
+  product_slug TEXT NOT NULL,
   stripe_subscription_id TEXT,
-  plan TEXT NOT NULL DEFAULT 'free',
-  status TEXT NOT NULL DEFAULT 'active',
+  stripe_price_id TEXT,
+  tier_id TEXT NOT NULL DEFAULT 'free',
+  status TEXT NOT NULL DEFAULT 'free',
   current_period_end TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  cancel_at_period_end BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(user_id, product_slug)
 );
 
 CREATE TABLE IF NOT EXISTS audit_logs (
@@ -33,6 +37,6 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_muse_product_subs_user ON muse_product_subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);

@@ -1,5 +1,5 @@
 -- DOCUMENTATION ONLY — DO NOT RUN AGAINST LIVE DATABASE
--- Core tables: profiles, organizations, team_members, team_invitations
+-- Core tables: profiles, organizations, organization_members, invitations
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
@@ -21,22 +21,23 @@ CREATE TABLE IF NOT EXISTS organizations (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS team_members (
+CREATE TABLE IF NOT EXISTS organization_members (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   role TEXT NOT NULL DEFAULT 'member',
   joined_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE(org_id, user_id)
+  UNIQUE(organization_id, user_id)
 );
 
-CREATE TABLE IF NOT EXISTS team_invitations (
+CREATE TABLE IF NOT EXISTS invitations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   email TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'member',
   invited_by UUID NOT NULL REFERENCES auth.users(id),
   token TEXT NOT NULL UNIQUE,
   expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   accepted_at TIMESTAMPTZ
 );

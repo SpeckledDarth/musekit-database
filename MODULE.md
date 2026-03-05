@@ -16,7 +16,7 @@ This module provides the TypeScript code layer to interact with the existing Mus
 ### Database Types (`src/schema.ts`)
 TypeScript interfaces for all existing Supabase tables:
 
-**Core tables:** profiles, organizations, team_members, team_invitations, subscriptions, audit_logs, notifications, brand_settings, feature_toggles, content_posts, waitlist, feedback, webhook_configs, email_templates, api_keys
+**Core tables:** profiles, organizations, organization_members, invitations, muse_product_subscriptions, audit_logs, notifications, settings, posts, waitlist_entries, feedback, email_templates, config_secrets
 
 **Extension tables (PassivePost):** social_posts, social_accounts, brand_preferences, social_analytics, post_queue
 
@@ -29,8 +29,8 @@ Reusable query functions:
 - `getSubscription(client, userId)`
 - `getNotifications(client, userId, unreadOnly?)`
 - `getAuditLogs(client, filters)`, `createAuditLog(client, entry)`
-- `getBrandSettings(client)`, `updateBrandSettings(client, settings)`
-- `getFeatureToggles(client)`, `updateFeatureToggle(client, key, enabled)`
+- `getSetting(client, key)`, `getSettings(client)`, `getSettingsByPrefix(client, prefix)`
+- `upsertSetting(client, entry)`
 
 ## Environment Variables Required
 

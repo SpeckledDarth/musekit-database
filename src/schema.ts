@@ -16,34 +16,38 @@ export interface Organization {
   created_at: string;
 }
 
-export interface TeamMember {
+export interface OrganizationMember {
   id: string;
-  org_id: string;
+  organization_id: string;
   user_id: string;
   role: string;
   joined_at: string;
 }
 
-export interface TeamInvitation {
+export interface Invitation {
   id: string;
-  org_id: string;
+  organization_id: string;
   email: string;
   role: string;
-  invited_by: string;
   token: string;
+  invited_by: string;
   expires_at: string;
+  created_at: string;
   accepted_at: string | null;
 }
 
-export interface Subscription {
+export interface ProductSubscription {
   id: string;
   user_id: string;
-  stripe_customer_id: string | null;
+  product_slug: string;
   stripe_subscription_id: string | null;
-  plan: string;
+  stripe_price_id: string | null;
+  tier_id: string;
   status: string;
   current_period_end: string | null;
+  cancel_at_period_end: boolean;
   created_at: string;
+  updated_at: string;
 }
 
 export interface AuditLog {
@@ -67,41 +71,27 @@ export interface Notification {
   created_at: string;
 }
 
-export interface BrandSettings {
-  id: string;
-  app_name: string;
-  logo_url: string | null;
-  primary_color: string;
-  accent_color: string;
-  hero_style: string | null;
-  header_bg: string | null;
-  header_text: string | null;
-  footer_bg: string | null;
-  footer_text: string | null;
-  updated_at: string;
-}
-
-export interface FeatureToggle {
+export interface Setting {
   id: string;
   key: string;
-  label: string;
-  description: string | null;
-  enabled: boolean;
+  value: string;
+}
+
+export interface Post {
+  id: string;
+  type: string;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  content: string;
+  author_id: string;
+  published: boolean;
+  published_at: string | null;
+  created_at: string;
   updated_at: string;
 }
 
-export interface ContentPost {
-  id: string;
-  title: string;
-  slug: string;
-  content: string;
-  status: string;
-  author_id: string;
-  published_at: string | null;
-  created_at: string;
-}
-
-export interface Waitlist {
+export interface WaitlistEntry {
   id: string;
   email: string;
   created_at: string;
@@ -115,15 +105,6 @@ export interface Feedback {
   created_at: string;
 }
 
-export interface WebhookConfig {
-  id: string;
-  url: string;
-  secret: string | null;
-  enabled: boolean;
-  events: string[];
-  created_at: string;
-}
-
 export interface EmailTemplate {
   id: string;
   name: string;
@@ -133,12 +114,12 @@ export interface EmailTemplate {
   updated_at: string;
 }
 
-export interface ApiKey {
+export interface ConfigSecret {
   id: string;
-  service: string;
-  key_encrypted: string;
-  source: string | null;
-  created_at: string;
+  key_name: string;
+  encrypted_value: string;
+  updated_at: string;
+  updated_by: string | null;
 }
 
 export interface SocialPost {
@@ -233,34 +214,38 @@ export interface OrganizationInsert {
   created_at?: string;
 }
 
-export interface TeamMemberInsert {
-  org_id: string;
+export interface OrganizationMemberInsert {
+  organization_id: string;
   user_id: string;
   id?: string;
   role?: string;
   joined_at?: string;
 }
 
-export interface TeamInvitationInsert {
-  org_id: string;
+export interface InvitationInsert {
+  organization_id: string;
   email: string;
   invited_by: string;
   token: string;
   expires_at: string;
   id?: string;
   role?: string;
+  created_at?: string;
   accepted_at?: string | null;
 }
 
-export interface SubscriptionInsert {
+export interface ProductSubscriptionInsert {
   user_id: string;
+  product_slug: string;
+  tier_id: string;
   id?: string;
-  stripe_customer_id?: string | null;
   stripe_subscription_id?: string | null;
-  plan?: string;
+  stripe_price_id?: string | null;
   status?: string;
   current_period_end?: string | null;
+  cancel_at_period_end?: boolean;
   created_at?: string;
+  updated_at?: string;
 }
 
 export interface AuditLogInsert {
@@ -284,41 +269,27 @@ export interface NotificationInsert {
   created_at?: string;
 }
 
-export interface BrandSettingsInsert {
-  id?: string;
-  app_name?: string;
-  logo_url?: string | null;
-  primary_color?: string;
-  accent_color?: string;
-  hero_style?: string | null;
-  header_bg?: string | null;
-  header_text?: string | null;
-  footer_bg?: string | null;
-  footer_text?: string | null;
-  updated_at?: string;
-}
-
-export interface FeatureToggleInsert {
+export interface SettingInsert {
   key: string;
-  label: string;
+  value: string;
   id?: string;
-  description?: string | null;
-  enabled?: boolean;
-  updated_at?: string;
 }
 
-export interface ContentPostInsert {
+export interface PostInsert {
   title: string;
   slug: string;
   content: string;
   author_id: string;
+  type?: string;
   id?: string;
-  status?: string;
+  excerpt?: string | null;
+  published?: boolean;
   published_at?: string | null;
   created_at?: string;
+  updated_at?: string;
 }
 
-export interface WaitlistInsert {
+export interface WaitlistEntryInsert {
   email: string;
   id?: string;
   created_at?: string;
@@ -332,15 +303,6 @@ export interface FeedbackInsert {
   created_at?: string;
 }
 
-export interface WebhookConfigInsert {
-  url: string;
-  id?: string;
-  secret?: string | null;
-  enabled?: boolean;
-  events?: string[];
-  created_at?: string;
-}
-
 export interface EmailTemplateInsert {
   name: string;
   subject: string;
@@ -350,12 +312,12 @@ export interface EmailTemplateInsert {
   updated_at?: string;
 }
 
-export interface ApiKeyInsert {
-  service: string;
-  key_encrypted: string;
+export interface ConfigSecretInsert {
+  key_name: string;
+  encrypted_value: string;
   id?: string;
-  source?: string | null;
-  created_at?: string;
+  updated_at?: string;
+  updated_by?: string | null;
 }
 
 export interface SocialPostInsert {
@@ -447,24 +409,26 @@ export interface Database {
         Update: Partial<OrganizationInsert>;
         Relationships: [];
       };
-      team_members: {
-        Row: TeamMember;
-        Insert: TeamMemberInsert;
-        Update: Partial<TeamMemberInsert>;
+      organization_members: {
+        Row: OrganizationMember;
+        Insert: OrganizationMemberInsert;
+        Update: Partial<OrganizationMemberInsert>;
         Relationships: [
-          { foreignKeyName: "team_members_org_id_fkey"; columns: ["org_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] }
+          { foreignKeyName: "organization_members_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] }
         ];
       };
-      team_invitations: {
-        Row: TeamInvitation;
-        Insert: TeamInvitationInsert;
-        Update: Partial<TeamInvitationInsert>;
-        Relationships: [];
+      invitations: {
+        Row: Invitation;
+        Insert: InvitationInsert;
+        Update: Partial<InvitationInsert>;
+        Relationships: [
+          { foreignKeyName: "invitations_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] }
+        ];
       };
-      subscriptions: {
-        Row: Subscription;
-        Insert: SubscriptionInsert;
-        Update: Partial<SubscriptionInsert>;
+      muse_product_subscriptions: {
+        Row: ProductSubscription;
+        Insert: ProductSubscriptionInsert;
+        Update: Partial<ProductSubscriptionInsert>;
         Relationships: [];
       };
       audit_logs: {
@@ -479,28 +443,22 @@ export interface Database {
         Update: Partial<NotificationInsert>;
         Relationships: [];
       };
-      brand_settings: {
-        Row: BrandSettings;
-        Insert: BrandSettingsInsert;
-        Update: Partial<BrandSettingsInsert>;
+      settings: {
+        Row: Setting;
+        Insert: SettingInsert;
+        Update: Partial<SettingInsert>;
         Relationships: [];
       };
-      feature_toggles: {
-        Row: FeatureToggle;
-        Insert: FeatureToggleInsert;
-        Update: Partial<FeatureToggleInsert>;
+      posts: {
+        Row: Post;
+        Insert: PostInsert;
+        Update: Partial<PostInsert>;
         Relationships: [];
       };
-      content_posts: {
-        Row: ContentPost;
-        Insert: ContentPostInsert;
-        Update: Partial<ContentPostInsert>;
-        Relationships: [];
-      };
-      waitlist: {
-        Row: Waitlist;
-        Insert: WaitlistInsert;
-        Update: Partial<WaitlistInsert>;
+      waitlist_entries: {
+        Row: WaitlistEntry;
+        Insert: WaitlistEntryInsert;
+        Update: Partial<WaitlistEntryInsert>;
         Relationships: [];
       };
       feedback: {
@@ -509,22 +467,16 @@ export interface Database {
         Update: Partial<FeedbackInsert>;
         Relationships: [];
       };
-      webhook_configs: {
-        Row: WebhookConfig;
-        Insert: WebhookConfigInsert;
-        Update: Partial<WebhookConfigInsert>;
-        Relationships: [];
-      };
       email_templates: {
         Row: EmailTemplate;
         Insert: EmailTemplateInsert;
         Update: Partial<EmailTemplateInsert>;
         Relationships: [];
       };
-      api_keys: {
-        Row: ApiKey;
-        Insert: ApiKeyInsert;
-        Update: Partial<ApiKeyInsert>;
+      config_secrets: {
+        Row: ConfigSecret;
+        Insert: ConfigSecretInsert;
+        Update: Partial<ConfigSecretInsert>;
         Relationships: [];
       };
       social_posts: {
