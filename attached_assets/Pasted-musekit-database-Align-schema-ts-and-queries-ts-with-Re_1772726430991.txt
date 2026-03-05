@@ -1,0 +1,76 @@
+musekit-database — Align schema.ts and queries.ts with Real Database
+Context
+You are working in the musekit-database module Repl. This builds packages/database/.
+
+The schema.ts and queries.ts files were written against a theoretical schema. The real Supabase database uses DIFFERENT table names and column structures. This prompt fixes the data layer so all other packages get correct types.
+
+Reference: See docs/real-db-schema.md in the integration Repl for the complete database schema with all column definitions.
+
+CRITICAL: Real Database Table Name Mapping
+Every table reference must be updated:
+
+schema.ts / queries.ts says	Real DB table
+brand_settings	settings
+team_invitations	invitations
+team_members	organization_members
+subscriptions	muse_product_subscriptions
+content_posts	posts
+waitlist	waitlist_entries
+api_keys	config_secrets
+Tables that are correct (no changes): profiles, organizations, audit_logs, notifications, feedback, email_templates, social_accounts
+
+FIX 1 (Critical): Update schema.ts type definitions
+File: src/schema.ts
+
+Update the Database interface to match the real table names and columns:
+
+Rename brand_settings interface to match settings table
+
+Columns: id (uuid), key (text), value (text)
+NOTE: NO updated_at column exists
+Rename team_invitations interface to match invitations table
+
+Columns: id, organization_id, email, role, token, invited_by, expires_at, created_at, accepted_at
+NOTE: uses organization_id NOT team_id
+Rename team_members interface to match organization_members table
+
+Columns: id, organization_id, user_id, role, joined_at
+NOTE: uses organization_id NOT team_id
+Rename subscriptions interface to match muse_product_subscriptions table
+
+Columns: id, user_id, product_slug, stripe_subscription_id, stripe_price_id, tier_id, status, current_period_end, cancel_at_period_end, created_at, updated_at
+Rename content_posts interface to match posts table
+
+Columns: id, type, title, slug, excerpt, content, author_id, published, published_at, created_at, updated_at
+NOTE: NO category or tags columns
+Rename waitlist interface to match waitlist_entries table
+
+Rename api_keys interface to match config_secrets table
+
+Columns: id, key_name, encrypted_value, updated_at, updated_by
+feature_toggles — this table DOES NOT EXIST in the database. Either remove this interface or note it needs to be stored as key/value pairs in the settings table.
+
+webhook_configs — this table DOES NOT EXIST in the database. Remove or stub this interface.
+
+FIX 2 (Critical): Update queries.ts
+File: src/queries.ts
+
+Update every .from() call to use the correct table name:
+
+.from("brand_settings") → .from("settings")
+.from("team_members") → .from("organization_members")
+.from("subscriptions") → .from("muse_product_subscriptions")
+.from("feature_toggles") → remove or convert to settings lookup
+Also update any column references:
+
+Remove updated_at from any settings upsert (column doesn't exist)
+Change team_id → organization_id in any team-related queries
+FIX 3: Update migration docs
+Files: src/migrations/core/*.sql
+
+Update the migration documentation files to reflect the real table names. These are marked "DOCUMENTATION ONLY" so they just need to match reality.
+
+Testing Checklist
+TypeScript compiles without errors
+All exported types match real DB columns
+All .from() calls use correct table names
