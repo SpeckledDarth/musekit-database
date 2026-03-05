@@ -13,6 +13,8 @@ src/
   migrations/
     core/           — SQL documentation of core table schemas
     extensions/     — SQL documentation of extension table schemas (PassivePost)
+  seeds/
+    seed-data.sql   — seed data for empty tables (settings, tickets, campaigns, site_pages, etc.)
 dist/               — compiled JavaScript output (auto-generated)
 ```
 
@@ -29,9 +31,13 @@ dist/               — compiled JavaScript output (auto-generated)
 - Workflow "Start application" runs `npx tsc -w` for dev mode
 
 ## Environment Variables
-- `NEXT_PUBLIC_SUPABASE_URL` — Supabase project URL
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anonymous/public key
+- `NEXT_PUBLIC_SUPABASE_URL` — Supabase project URL (must be static process.env reference for webpack/Next.js)
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anonymous/public key (must be static process.env reference)
 - `SUPABASE_SERVICE_ROLE_KEY` — Supabase service role key (admin operations)
+
+## Seed Data
+Run `src/seeds/seed-data.sql` against Supabase to populate empty tables with test data.
+Includes: settings (branding/features/AI config), tickets, ticket_comments, campaigns (with ALTER TABLE for missing columns), affiliate_profiles, and site_pages (CREATE TABLE + RLS + seed pages).
 
 ## Database Tables (Real DB Names)
 Core: profiles, organizations, organization_members, invitations, muse_product_subscriptions, audit_logs, notifications, settings, posts, waitlist_entries, feedback, email_templates, config_secrets
