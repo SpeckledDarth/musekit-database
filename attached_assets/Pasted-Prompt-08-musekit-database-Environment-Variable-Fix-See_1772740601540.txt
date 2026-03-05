@@ -1,0 +1,202 @@
+Prompt 08: musekit-database — Environment Variable Fix + Seed Data
+Module Repl
+musekit-database (GitHub: SpeckledDarth/musekit-database)
+
+Part A: Fix Dynamic Environment Variable Access
+Problem
+In src/client.ts, the getEnvVar() helper reads environment variables using dynamic property access:
+
+function getEnvVar(key: string): string {
+  const value = process.env[key];
+  if (!value) {
+    throw new Error(`Missing environment variable: ${key}`);
+  }
+  return value;
+}
+Why this breaks: When this package is consumed by a Next.js app and bundled by webpack, NEXT_PUBLIC_* environment variables are inlined at build time via static string replacement. Webpack looks for the literal pattern process.env.NEXT_PUBLIC_SUPABASE_URL in the source code and replaces it with the actual value. When the access is dynamic (process.env[key]), webpack cannot perform this replacement, and the variable is undefined in the browser bundle.
+
+Fix Required
+Remove the getEnvVar() function entirely. Replace all calls with direct static references:
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+export function createBrowserClient() {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error("Missing Supabase environment variables");
+  }
+  return createSSRBrowserClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+export function createServerClient(cookieStore: CookieStore) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error("Missing Supabase environment variables");
+  }
+  return createSSRServerClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY,
+    { ... }  // keep existing cookie config unchanged
+  );
+}
+export function createAdminClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error("Missing Supabase admin environment variables");
+  }
+  return createClient<Database>(supabaseUrl, serviceRoleKey, { ... });
+}
+Key Constraint
+NEXT_PUBLIC_* variables MUST appear as static process.env.NEXT_PUBLIC_SUPABASE_URL in the source code — never behind a helper function, never via process.env[variable]. This is a webpack/Next.js build requirement.
+
+Part B: Seed Data for Empty Tables
+Several tables in the live Supabase database have 0 rows. The admin UI pages that display these tables appear empty and untestable. Create a seed data SQL script file at src/seeds/seed-data.sql that the user can run against Supabase.
+
+Tables needing seed data:
+1. settings (0 rows) — Global app configuration
+This table stores key/value pairs. The admin UI expects these keys to exist:
+
+INSERT INTO settings (id, key, value) VALUES
+  (gen_random_uuid(), 'branding.appName', 'MuseKit'),
+  (gen_random_uuid(), 'branding.description', 'Build Your SaaS Faster'),
+  (gen_random_uuid(), 'branding.logoUrl', ''),
+  (gen_random_uuid(), 'branding.primaryColor', '#4F46E5'),
+  (gen_random_uuid(), 'branding.headerBg', '#ffffff'),
+  (gen_random_uuid(), 'branding.footerBg', '#1f2937'),
+  (gen_random_uuid(), 'features.googleAuth', 'true'),
+  (gen_random_uuid(), 'features.githubAuth', 'true'),
+  (gen_random_uuid(), 'features.magicLinks', 'true'),
+  (gen_random_uuid(), 'features.helpWidget', 'true'),
+  (gen_random_uuid(), 'ai.provider', 'xai'),
+  (gen_random_uuid(), 'ai.model', 'grok-3-mini'),
+  (gen_random_uuid(), 'content.sections', '[{"type":"hero","enabled":true,"sortOrder":1},{"type":"feature-cards","enabled":true,"sortOrder":2},{"type":"testimonials","enabled":true,"sortOrder":3},{"type":"pricing","enabled":true,"sortOrder":4},{"type":"faq","enabled":true,"sortOrder":5},{"type":"cta","enabled":true,"sortOrder":6}]');
+2. tickets (0 rows) — Support tickets
+-- Use existing user IDs from profiles table. Replace these UUIDs with real user IDs from your profiles table.
+INSERT INTO tickets (id, user_id, subject, description, status, priority, category, ticket_number, created_at, updated_at) VALUES
+  (gen_random_uuid(), (SELECT id FROM profiles LIMIT 1), 'Cannot connect social account', 'I keep getting an error when trying to connect my Twitter account. The OAuth popup opens but then closes immediately without connecting.', 'open', 'high', 'bug', 'TK-001', NOW() - INTERVAL '3 days', NOW() - INTERVAL '3 days'),
+  (gen_random_uuid(), (SELECT id FROM profiles LIMIT 1), 'How do I upgrade my plan?', 'I want to upgrade from Starter to Premium but cannot find the upgrade button in my dashboard.', 'open', 'medium', 'billing', 'TK-002', NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days'),
+  (gen_random_uuid(), (SELECT id FROM profiles OFFSET 1 LIMIT 1), 'Feature request: bulk scheduling', 'It would be great to be able to schedule multiple posts at once via CSV upload.', 'open', 'low', 'feature_request', 'TK-003', NOW() - INTERVAL '5 days', NOW() - INTERVAL '5 days'),
+  (gen_random_uuid(), (SELECT id FROM profiles OFFSET 2 LIMIT 1), 'Post failed to publish', 'My scheduled post for yesterday at 3pm never went out. Still shows as "scheduled" in my dashboard.', 'in_progress', 'high', 'bug', 'TK-004', NOW() - INTERVAL '1 day', NOW() - INTERVAL '12 hours'),
+  (gen_random_uuid(), (SELECT id FROM profiles OFFSET 1 LIMIT 1), 'Wrong timezone on scheduler', 'All my posts are scheduling 3 hours ahead of my local time. I have set my timezone to EST but it seems to be using UTC.', 'resolved', 'medium', 'bug', 'TK-005', NOW() - INTERVAL '7 days', NOW() - INTERVAL '4 days'),
+  (gen_random_uuid(), (SELECT id FROM profiles LIMIT 1), 'Account deletion request', 'I would like to delete my account and all associated data. Please process this GDPR request.', 'open', 'high', 'account', 'TK-006', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day'),
+  (gen_random_uuid(), (SELECT id FROM profiles OFFSET 2 LIMIT 1), 'API rate limiting question', 'What are the rate limits for the API? I am building an integration and want to make sure I stay within limits.', 'closed', 'low', 'question', 'TK-007', NOW() - INTERVAL '10 days', NOW() - INTERVAL '8 days');
+3. ticket_comments (0 rows) — Comments on support tickets
+-- These reference ticket IDs created above. Run after tickets insert.
+INSERT INTO ticket_comments (id, ticket_id, user_id, body, is_internal, created_at) VALUES
+  (gen_random_uuid(), (SELECT id FROM tickets WHERE ticket_number = 'TK-001'), (SELECT id FROM profiles LIMIT 1), 'I have tried clearing my browser cache and using incognito mode but still getting the same error.', false, NOW() - INTERVAL '2 days'),
+  (gen_random_uuid(), (SELECT id FROM tickets WHERE ticket_number = 'TK-001'), (SELECT id FROM profiles WHERE role = 'super_admin' LIMIT 1), 'This is a known issue with the Twitter OAuth v2 callback. We are working on a fix. As a workaround, try using Chrome.', false, NOW() - INTERVAL '1 day'),
+  (gen_random_uuid(), (SELECT id FROM tickets WHERE ticket_number = 'TK-004'), (SELECT id FROM profiles WHERE role = 'super_admin' LIMIT 1), 'INTERNAL: Checked the job queue — the BullMQ worker crashed at 2:45pm. Restarted and the backlog is processing now.', true, NOW() - INTERVAL '10 hours'),
+  (gen_random_uuid(), (SELECT id FROM tickets WHERE ticket_number = 'TK-005'), (SELECT id FROM profiles WHERE role = 'super_admin' LIMIT 1), 'Fixed in v2.4.1 — timezone was being stored as UTC offset instead of IANA zone name. Deployed the fix.', false, NOW() - INTERVAL '5 days'),
+  (gen_random_uuid(), (SELECT id FROM tickets WHERE ticket_number = 'TK-005'), (SELECT id FROM profiles OFFSET 2 LIMIT 1), 'Confirmed, this is working correctly now. Thank you!', false, NOW() - INTERVAL '4 days');
+4. campaigns (0 rows) — Email campaigns
+INSERT INTO campaigns (id, created_at) VALUES
+  (gen_random_uuid(), NOW() - INTERVAL '14 days'),
+  (gen_random_uuid(), NOW() - INTERVAL '7 days'),
+  (gen_random_uuid(), NOW() - INTERVAL '1 day');
+Note: The campaigns table currently only has id and created_at. Prompt 13 (musekit-email) requires additional columns for the campaign management UI. Check the actual table structure first — if the required columns are missing, add them via ALTER TABLE:
+
+-- Add campaign columns if they don't exist (check first!)
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS name text;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS subject text;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS body text;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS from_name text;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS reply_to text;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS status text DEFAULT 'draft' CHECK (status IN ('draft', 'scheduled', 'sending', 'sent', 'failed'));
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS audience jsonb;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS scheduled_at timestamptz;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS sent_at timestamptz;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS sent_count integer DEFAULT 0;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS open_rate numeric DEFAULT 0;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS click_rate numeric DEFAULT 0;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS bounce_count integer DEFAULT 0;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS unsubscribe_count integer DEFAULT 0;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT NOW();
+Then populate the seed data with all columns:
+
+INSERT INTO campaigns (id, name, subject, body, status, sent_at, sent_count, open_rate, click_rate, created_at) VALUES
+  (gen_random_uuid(), 'Welcome Series Launch', 'Welcome to MuseKit!', '<h1>Welcome!</h1><p>Thanks for joining.</p>', 'sent', NOW() - INTERVAL '14 days', 245, 68.5, 12.3, NOW() - INTERVAL '14 days'),
+  (gen_random_uuid(), 'Feature Announcement', 'New: Page Builder is here', '<h1>Build Pages</h1><p>Create custom pages.</p>', 'sent', NOW() - INTERVAL '7 days', 198, 52.1, 8.7, NOW() - INTERVAL '7 days'),
+  (gen_random_uuid(), 'March Newsletter', 'Your March update', '<h1>March News</h1><p>Here is what happened.</p>', 'draft', NULL, 0, 0, 0, NOW() - INTERVAL '1 day');
+5. Additional affiliate_profiles (currently 1 row — add more for realistic testing)
+-- Add 4 more affiliate profiles for users that exist in profiles table
+INSERT INTO affiliate_profiles (id, user_id, display_name, payout_method, payout_email, onboarded_at, tour_completed, show_in_directory, created_at, updated_at)
+SELECT gen_random_uuid(), p.id, p.full_name, 'paypal', p.email, NOW() - INTERVAL '30 days', true, true, NOW() - INTERVAL '30 days', NOW()
+FROM profiles p
+WHERE p.id NOT IN (SELECT user_id FROM affiliate_profiles)
+LIMIT 4;
+Part C: Create site_pages Table
+The MuseKit page builder currently only supports the homepage. Every MuseKit deployment needs the ability to create unlimited pages (About, Features, Pricing, Contact, etc.), each built from the same section toolkit. This requires a new site_pages table.
+
+Add this CREATE TABLE to the seed data SQL file:
+
+CREATE TABLE IF NOT EXISTS site_pages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug text UNIQUE NOT NULL,
+  title text NOT NULL,
+  description text,
+  sections jsonb NOT NULL DEFAULT '[]'::jsonb,
+  status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published')),
+  show_in_nav boolean DEFAULT true,
+  sort_order integer DEFAULT 0,
+  seo_title text,
+  seo_description text,
+  og_image text,
+  focus_keyword text,
+  canonical_url text,
+  no_index boolean DEFAULT false,
+  updated_by uuid REFERENCES profiles(id),
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+-- RLS policies
+ALTER TABLE site_pages ENABLE ROW LEVEL SECURITY;
+-- Public can read published pages
+CREATE POLICY "Public can read published pages"
+  ON site_pages FOR SELECT
+  USING (status = 'published');
+-- Admins can do everything
+CREATE POLICY "Admins can manage all pages"
+  ON site_pages FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid()
+      AND profiles.role IN ('super_admin', 'admin')
+    )
+  );
+-- Service role can do everything (for server-side operations)
+CREATE POLICY "Service role full access"
+  ON site_pages FOR ALL
+  USING (auth.role() = 'service_role');
+Seed data for site_pages:
+Insert the homepage with the default landing config, plus 2 example pages:
+
+-- Homepage (uses the same section config as default-config.ts)
+INSERT INTO site_pages (id, slug, title, description, sections, status, show_in_nav, sort_order) VALUES
+(gen_random_uuid(), 'home', 'Home', 'Build Your SaaS Faster with MuseKit', '[
+  {"type":"hero","enabled":true,"sortOrder":1,"props":{"style":"pattern","headline":"Build Your SaaS Faster","subheadline":"MuseKit is the complete SaaS starter kit. Authentication, billing, admin tools, email, AI, and a full CMS — all wired up and ready to customize.","ctaText":"Get Started","ctaLink":"/signup","secondaryCtaText":"Learn More","secondaryCtaLink":"/features"}},
+  {"type":"feature-cards","enabled":true,"sortOrder":2,"props":{"title":"Everything You Need to Launch","subtitle":"Stop piecing together boilerplate.","columns":3,"features":[{"icon":"Shield","title":"Auth & Users","description":"Secure authentication with email, social logins, and role-based access control."},{"icon":"CreditCard","title":"Billing & Subscriptions","description":"Stripe integration with subscription plans, usage-based billing, and invoices."},{"icon":"LayoutDashboard","title":"Admin Dashboard","description":"A full admin panel for managing users, content, settings, and analytics."},{"icon":"Mail","title":"Email System","description":"Transactional email templates for onboarding, notifications, and marketing."},{"icon":"Sparkles","title":"AI Integration","description":"Built-in AI-powered tools for content generation and automated workflows."},{"icon":"FileText","title":"Blog & CMS","description":"Complete content management with a markdown blog, landing page builder, and SEO tools."}]}},
+  {"type":"process-steps","enabled":true,"sortOrder":3,"props":{"title":"Get Started in Minutes","subtitle":"Go from zero to a fully functional SaaS application in four steps.","steps":[{"title":"Clone the Repo","description":"Get the entire MuseKit codebase with a single command."},{"title":"Configure Your Settings","description":"Set environment variables, connect Supabase and Stripe."},{"title":"Customize the Design","description":"Tailor branding with the design system — colors, typography, and styles."},{"title":"Launch Your Product","description":"Deploy to production with secure defaults and monitoring built in."}]}},
+  {"type":"testimonial-carousel","enabled":true,"sortOrder":4,"props":{"testimonials":[{"quote":"MuseKit saved us at least three months of development time.","name":"Sarah Chen","role":"CTO","company":"Pairwise Labs"},{"quote":"The modular architecture is brilliant.","name":"Marcus Rivera","role":"Lead Engineer","company":"Northwind Digital"},{"quote":"Finally, a starter kit that feels production-ready from day one.","name":"Priya Sharma","role":"Founder","company":"Canopy Analytics"}]}},
+  {"type":"faq","enabled":true,"sortOrder":5,"props":{"title":"Frequently Asked Questions","faqs":[{"question":"What is MuseKit?","answer":"MuseKit is a complete SaaS starter kit with auth, billing, admin, email, AI, and CMS."},{"question":"What tech stack does it use?","answer":"Next.js 14, React 18, TypeScript, Tailwind CSS, Supabase, and Stripe."},{"question":"Is it production-ready?","answer":"Yes. MuseKit ships with secure defaults, RBAC, validation, and error handling."}]}},
+  {"type":"bottom-hero-cta","enabled":true,"sortOrder":6,"props":{"headline":"Ready to Launch?","subheadline":"Stop rebuilding infrastructure. Start with MuseKit.","ctaText":"Start Building","ctaLink":"/signup"}}
+]'::jsonb, 'published', false, 0);
+-- About page
+INSERT INTO site_pages (id, slug, title, description, sections, status, show_in_nav, sort_order) VALUES
+(gen_random_uuid(), 'about', 'About Us', 'Learn about the team behind MuseKit', '[
+  {"type":"hero","enabled":true,"sortOrder":1,"props":{"style":"gradient","headline":"About MuseKit","subheadline":"We build tools that help developers ship faster.","ctaText":"Join Us","ctaLink":"/signup"}},
+  {"type":"founder-letter","enabled":true,"sortOrder":2,"props":{"name":"Alex Morgan","title":"Founder & CEO","letter":"We started MuseKit because we were tired of rebuilding the same SaaS infrastructure for every project. Authentication, billing, admin dashboards, email systems — they are table stakes, not differentiators. We built MuseKit so you can focus on what makes your product unique."}},
+  {"type":"image-text-blocks","enabled":true,"sortOrder":3,"props":{"blocks":[{"image":"","headline":"Our Mission","description":"Make SaaS development accessible to everyone by providing a production-grade foundation.","layout":"image-left"},{"image":"","headline":"Our Values","description":"Open source, developer-first, and built for scale. Every decision we make starts with the developer experience.","layout":"image-right"}]}},
+  {"type":"bottom-hero-cta","enabled":true,"sortOrder":4,"props":{"headline":"Join the Community","subheadline":"Thousands of developers build with MuseKit.","ctaText":"Get Started","ctaLink":"/signup"}}
+]'::jsonb, 'published', true, 1);
+-- Features page
+INSERT INTO site_pages (id, slug, title, description, sections, status, show_in_nav, sort_order) VALUES
+(gen_random_uuid(), 'features', 'Features', 'Everything included in MuseKit', '[
+  {"type":"hero","enabled":true,"sortOrder":1,"props":{"style":"pattern","headline":"Everything You Need","subheadline":"A complete SaaS foundation with every feature built in.","ctaText":"Start Free","ctaLink":"/signup"}},
+  {"type":"feature-cards","enabled":true,"sortOrder":2,"props":{"title":"Core Features","subtitle":"Production-ready modules you can adopt incrementally.","columns":3,"features":[{"icon":"Shield","title":"Authentication","description":"Email, social login, magic links, and role-based access control."},{"icon":"CreditCard","title":"Billing","description":"Stripe subscriptions, usage billing, invoices, and customer portal."},{"icon":"LayoutDashboard","title":"Admin Panel","description":"User management, analytics, content editing, and system settings."},{"icon":"Mail","title":"Email","description":"Transactional templates, campaigns, and delivery tracking."},{"icon":"Globe","title":"CMS","description":"Blog, landing pages, changelog, and media library."},{"icon":"Users","title":"Affiliate Program","description":"Full affiliate management with tiers, payouts, and tracking."}]}},
+  {"type":"screenshot-showcase","enabled":true,"sortOrder":3,"props":{"title":"See It in Action","subtitle":"Built with modern design principles.","screenshots":[]}},
+  {"type":"comparison-bars","enabled":true,"sortOrder":4,"props":{"title":"Build Faster","subtitle":"Compare development time with and without MuseKit.","beforeLabel":"Without MuseKit","afterLabel":"With MuseKit","comparisons":[{"label":"Auth System","before":80,"after":5,"unit":"hours"},{"label":"Billing Integration","before":120,"after":8,"unit":"hours"},{"label":"Admin Dashboard","before":200,"after":10,"unit":"hours"},{"label":"Email System","before":60,"after":4,"unit":"hours"}]}},
+  {"type":"bottom-hero-cta","enabled":true,"sortOrder":5,"props":{"headline":"Ready to Build?","subheadline":"Get started in minutes, not months.","ctaText":"Start Free","ctaLink":"/signup"}}
+]'::jsonb, 'published', true, 2);
+After Fix
+Apply the client.ts env var fix
+Create the src/seeds/seed-data.sql file with all SQL above (including CREATE TABLE for site_pages and all seed data)
+Push to GitHub
+The integration Repl will pull the updated code
+The user will run the seed SQL against Supabase separately
