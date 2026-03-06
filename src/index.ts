@@ -21,6 +21,7 @@ export type {
   BrandPreference,
   SocialAnalytics,
   PostQueue,
+  SitePage,
   ProfileInsert,
   OrganizationInsert,
   OrganizationMemberInsert,

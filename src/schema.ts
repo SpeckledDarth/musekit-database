@@ -394,6 +394,26 @@ export interface PostQueueInsert {
   scheduled_at?: string | null;
 }
 
+export interface SitePage {
+  id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  sections: any[];
+  status: 'draft' | 'review' | 'published';
+  show_in_nav: boolean;
+  sort_order: number;
+  seo_title: string | null;
+  seo_description: string | null;
+  og_image: string | null;
+  focus_keyword: string | null;
+  canonical_url: string | null;
+  no_index: boolean;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Database {
   public: {
     Tables: {

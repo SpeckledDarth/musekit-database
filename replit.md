@@ -40,9 +40,19 @@ Run `src/seeds/seed-data.sql` against Supabase to populate empty tables with tes
 Includes: settings (branding/features/AI config), tickets, ticket_comments, campaigns (with ALTER TABLE for missing columns), affiliate_profiles, and site_pages (CREATE TABLE + RLS + seed pages).
 
 ## Database Tables (Real DB Names)
-Core: profiles, organizations, organization_members, invitations, muse_product_subscriptions, audit_logs, notifications, settings, posts, waitlist_entries, feedback, email_templates, config_secrets
+Core: profiles, organizations, organization_members, invitations, muse_product_subscriptions, audit_logs, notifications, settings, posts, waitlist_entries, feedback, email_templates, config_secrets, site_pages
 
 Extensions (PassivePost): social_posts, social_accounts, brand_preferences, social_analytics, post_queue
+
+## Standalone Migration & Seed Files
+```
+supabase/
+  migrations/
+    002_create_site_pages.sql  — CREATE TABLE + RLS policies (run manually in Supabase SQL Editor)
+  seed/
+    003_site_pages_seed.sql    — seed data for home, about, features pages (run manually)
+```
+These files are NOT executed by this library. Copy and run them in the Supabase SQL Editor.
 
 ## Table Name Mapping (old theoretical → real DB)
 - brand_settings → settings (key/value pairs, no updated_at)
