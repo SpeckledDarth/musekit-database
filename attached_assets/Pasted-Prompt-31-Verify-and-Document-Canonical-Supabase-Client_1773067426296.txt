@@ -1,0 +1,88 @@
+Prompt 31: Verify and Document Canonical Supabase Client Exports
+Context
+Production Target
+Next.js 14.2.18 (App Router) + Supabase + Vercel
+This module lives at packages/database/ in a Turborepo monorepo
+@musekit/database is the canonical source for all Supabase client creation across the entire monorepo
+Current State (verified against live code March 9, 2026)
+The canonical client at packages/database/src/client.ts correctly:
+
+Exports createBrowserClient, createServerClient, createAdminClient
+Exports CookieStore type
+Throws explicit errors when env vars are missing (correct behavior)
+Six other packages have their own Supabase clients with inconsistent error handling:
+
+packages/admin/src/lib/supabase.ts — defaults to empty strings ("") when env vars missing → silent failure
+packages/cms/src/lib/supabase.ts — uses ! non-null assertion → crashes with unhelpful error
+packages/affiliate/src/lib/supabase.ts — uses ! non-null assertion → crashes with unhelpful error
+packages/palette/src/lib/supabase.ts — returns null when env vars missing → safe but inconsistent
+packages/auth/src/clients.ts — imports from @musekit/database → correct, already canonical
+packages/billing/src/lib/database/index.ts — throws explicit error → correct
+Other packages will be updated in their own prompts (32–35) to import from @musekit/database instead of maintaining local clients.
+
+Fix — Add JSDoc Comments to All Three Exported Functions
+File: src/client.ts
+Add documentation above each function. Do NOT change any logic, function signatures, or error handling.
+
+Above createBrowserClient:
+
+/**
+ * Creates a Supabase client for use in browser/client components.
+ * Uses @supabase/ssr for cookie-based session management.
+ * Throws if NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY are missing.
+ *
+ * Use this in "use client" components and client-side hooks.
+ */
+Above createServerClient:
+
+/**
+ * Creates a Supabase client for use in Next.js server contexts (Server Components, Route Handlers, Server Actions).
+ * Requires a cookieStore for session persistence across SSR boundaries.
+ * Throws if NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY are missing.
+ *
+ * Use this in server components and API route handlers.
+ */
+Above createAdminClient:
+
+/**
+ * Creates a Supabase admin client that bypasses Row Level Security (RLS).
+ * Uses SUPABASE_SERVICE_ROLE_KEY — NEVER expose this client to the browser.
+ * Throws if NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY are missing.
+ *
+ * Use this for server-side admin operations (user management, settings writes, etc.).
+ */
+File: src/index.ts
+Verify that ALL three functions and the CookieStore type are re-exported. If any are missing, add them:
+
+export { createBrowserClient, createServerClient, createAdminClient } from "./client";
+export type { CookieStore } from "./client";
+Critical Rules
+Do NOT change any function signatures — the existing API is correct
+Do NOT change the error handling logic — the throw-on-missing-env pattern is correct
+Only add JSDoc comments and verify exports — no logic changes
+Do NOT add new functions
+Verification
+Grep verification commands
+All three functions exported from index.ts:
+
+grep -n "createBrowserClient\|createServerClient\|createAdminClient" src/index.ts
+Expected: all three function names appear in export statements.
+
+CookieStore type exported:
+
+grep -n "CookieStore" src/index.ts
+Expected: appears in an export type statement.
+
+JSDoc comments exist:
+
+grep -c "\*/" src/client.ts
+Expected: at least 3 (one per function).
+
+Per-file checklist
+ src/client.ts — JSDoc comments added above all three functions
+ src/index.ts — exports all three functions and CookieStore type
+ No logic, signatures, or error handling changed
+ No other files modified
+TypeScript compiles
+npx tsc --noEmit
+Expected: no errors.
