@@ -27,3 +27,7 @@ args = "npx tsc -w"
 
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[ports]]
+localPort = 5904
+externalPort = 80

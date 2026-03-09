@@ -1,0 +1,170 @@
+Prompt 30: Create site_pages Table in Supabase
+Context
+Production Target
+Supabase PostgreSQL database
+This module lives at packages/database/ in a Turborepo monorepo
+The site_pages table was referenced in prompt 08 as "TO BE CREATED" but was never actually created
+Multiple features depend on this table: the CMS HomePageLoader, dynamic page routing (/[slug]), the admin Pages setup page, and the SiteNav component
+Problem: Missing Table
+The site_pages table does not exist in the Supabase database. Without it:
+
+The HomePageLoader component fails to fetch homepage section configuration and falls back to hardcoded defaults
+Dynamic page routing (apps/web/src/app/[slug]/page.tsx) cannot resolve custom pages
+The admin setup Pages page (/admin/setup/pages) cannot create, edit, or list site pages
+The SiteNav component cannot query pages with show_in_nav = true
+Impact
+The entire CMS page management system is non-functional
+Homepage sections cannot be configured from admin (toggle on/off, reorder)
+No custom pages can be created (about, contact, etc.)
+Fix — Create Table, RLS Policies, and Seed Data
+Step 1: Create the site_pages table
+Run this SQL in the Supabase SQL Editor (or add as a migration file):
+
+CREATE TABLE IF NOT EXISTS site_pages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug text UNIQUE NOT NULL,
+  title text NOT NULL DEFAULT '',
+  content text DEFAULT '',
+  sections jsonb DEFAULT '[]'::jsonb,
+  meta_title text DEFAULT '',
+  meta_description text DEFAULT '',
+  status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
+  show_in_nav boolean DEFAULT false,
+  sort_order integer DEFAULT 0,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+CREATE INDEX idx_site_pages_slug ON site_pages(slug);
+CREATE INDEX idx_site_pages_status ON site_pages(status);
+Step 2: Add RLS Policies
+ALTER TABLE site_pages ENABLE ROW LEVEL SECURITY;
+-- Public read access for published pages
+CREATE POLICY "Anyone can read published site pages"
+  ON site_pages FOR SELECT
+  USING (status = 'published');
+-- Admin full access (using service role key bypasses RLS, but this policy
+-- allows admin users authenticated via anon key to also manage pages)
+CREATE POLICY "Admins can manage site pages"
+  ON site_pages FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.id = auth.uid()
+      AND profiles.role IN ('admin', 'super_admin')
+    )
+  );
+Step 3: Seed default homepage entry
+INSERT INTO site_pages (slug, title, status, show_in_nav, sections, meta_title, meta_description)
+VALUES (
+  'home',
+  'Home',
+  'published',
+  false,
+  '[
+    {"type": "hero", "enabled": true, "sortOrder": 0, "config": {"style": "full-width"}},
+    {"type": "logo-marquee", "enabled": true, "sortOrder": 1, "config": {}},
+    {"type": "counters", "enabled": true, "sortOrder": 2, "config": {}},
+    {"type": "features", "enabled": true, "sortOrder": 3, "config": {}},
+    {"type": "testimonials", "enabled": true, "sortOrder": 4, "config": {}},
+    {"type": "process-steps", "enabled": true, "sortOrder": 5, "config": {}},
+    {"type": "faq", "enabled": true, "sortOrder": 6, "config": {}},
+    {"type": "bottom-cta", "enabled": true, "sortOrder": 7, "config": {}}
+  ]'::jsonb,
+  'MuseKit - SaaS Starter Template',
+  'A production-ready SaaS foundation for rapid product launch'
+),
+(
+  'about',
+  'About',
+  'draft',
+  true,
+  '[]'::jsonb,
+  'About Us',
+  'Learn more about our company'
+);
+Step 4: Add migration file to the database package
+Create a new migration file at migrations/core/006_site_pages.sql (or the next available number) containing all three SQL blocks above (CREATE TABLE, RLS, and seed data).
+
+Step 5: Update the schema types
+In src/schema.ts, add the site_pages type to the Database type definition. The table type should include:
+
+site_pages: {
+  Row: {
+    id: string;
+    slug: string;
+    title: string;
+    content: string | null;
+    sections: any; // jsonb
+    meta_title: string | null;
+    meta_description: string | null;
+    status: 'draft' | 'published';
+    show_in_nav: boolean;
+    sort_order: number;
+    created_at: string;
+    updated_at: string;
+  };
+  Insert: {
+    id?: string;
+    slug: string;
+    title: string;
+    content?: string | null;
+    sections?: any;
+    meta_title?: string | null;
+    meta_description?: string | null;
+    status?: 'draft' | 'published';
+    show_in_nav?: boolean;
+    sort_order?: number;
+    created_at?: string;
+    updated_at?: string;
+  };
+  Update: Partial</* Insert type fields */>;
+};
+Critical Rules
+Run the CREATE TABLE SQL in Supabase first — the migration file is for version control, the live database needs the table now
+Do NOT modify any existing tables — only create the new site_pages table
+The slug column must be UNIQUE — the CMS queries by slug for page routing
+The sections column must be jsonb — it stores the homepage section configuration as a JSON array
+Seed the home entry with status = 'published' — this is required for HomePageLoader to find it
+The sections JSON format must match what HomePageLoader expects: [{type, enabled, sortOrder, config}]
+Verification
+SQL verification commands
+Table exists:
+
+SELECT table_name FROM information_schema.tables WHERE table_name = 'site_pages';
+Expected: 1 row returned.
+
+Columns are correct:
+
+SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'site_pages' ORDER BY ordinal_position;
+Expected: 12 columns (id, slug, title, content, sections, meta_title, meta_description, status, show_in_nav, sort_order, created_at, updated_at).
+
+RLS is enabled:
+
+SELECT relrowsecurity FROM pg_class WHERE relname = 'site_pages';
+Expected: true.
+
+Seed data exists:
+
+SELECT slug, status, show_in_nav FROM site_pages;
+Expected: 2 rows — home (published, false) and about (draft, true).
+
+Homepage sections JSON is valid:
+
+SELECT jsonb_array_length(sections) FROM site_pages WHERE slug = 'home';
+Expected: 8 (eight section entries).
+
+Per-file checklist
+ migrations/core/006_site_pages.sql (or next number) — contains CREATE TABLE, RLS policies, and seed data
+ src/schema.ts — contains site_pages type definition in the Database interface
+ No other files were modified
+No-other-files-modified check
+git diff --name-only
+Expected: only the migration file and src/schema.ts appear.
+
+TypeScript compiles
+npx tsc --noEmit
+Expected: no errors.
+
+Runtime check
+Supabase SQL Editor: SELECT * FROM site_pages; returns 2 rows
+Public access: SELECT * FROM site_pages WHERE status = 'published'; returns the home row (test with anon key)

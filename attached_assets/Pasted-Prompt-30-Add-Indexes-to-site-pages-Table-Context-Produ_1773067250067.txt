@@ -1,0 +1,52 @@
+Prompt 30: Add Indexes to site_pages Table
+Context
+Production Target
+Supabase PostgreSQL database
+This module lives at packages/database/ in a Turborepo monorepo
+Current State (verified against live database March 9, 2026)
+The site_pages table already exists with 3 rows (home, about, features) and a 17-column schema created by Prompt 18. The table has:
+
+Columns: id, slug, title, description, sections, status, show_in_nav, sort_order, seo_title, seo_description, og_image, focus_keyword, canonical_url, no_index, updated_by, created_at, updated_at
+Status values: draft, review, published
+Sections JSON format: [{type, props, enabled, sortOrder}] (using props, NOT config)
+3 seed pages with rich section content
+RLS policies already in place
+What's Missing
+The table does not have indexes on slug or status, which are the two most common query patterns (page lookup by slug, filtering published pages).
+
+Fix — Add Two Indexes
+Run in Supabase SQL Editor:
+
+CREATE INDEX IF NOT EXISTS idx_site_pages_slug ON site_pages(slug);
+CREATE INDEX IF NOT EXISTS idx_site_pages_status ON site_pages(status);
+Also create a migration file for version control:
+
+File: migrations/core/006_site_pages_indexes.sql (or next available number)
+-- Add indexes to site_pages for common query patterns
+-- Table already exists (created by Prompt 18)
+CREATE INDEX IF NOT EXISTS idx_site_pages_slug ON site_pages(slug);
+CREATE INDEX IF NOT EXISTS idx_site_pages_status ON site_pages(status);
+Critical Rules
+Do NOT create, drop, or alter the site_pages table — it already exists with 3 rows of live data
+Do NOT modify any columns, RLS policies, or seed data — they are correct as-is
+Do NOT touch any other tables — this prompt only adds two indexes
+Use CREATE INDEX IF NOT EXISTS to make the migration idempotent
+Verification
+SQL verification
+Indexes exist:
+
+SELECT indexname FROM pg_indexes WHERE tablename = 'site_pages';
+Expected: includes idx_site_pages_slug and idx_site_pages_status.
+
+Table data is untouched:
+
+SELECT slug, status FROM site_pages ORDER BY sort_order;
+Expected: 3 rows — home (published), about (published), features (published).
+
+Per-file checklist
+ migrations/core/006_site_pages_indexes.sql — contains only CREATE INDEX IF NOT EXISTS statements
+ No other files modified
+ Table data unchanged (3 rows with same content)
+TypeScript compiles
+npx tsc --noEmit
+Expected: no errors.
